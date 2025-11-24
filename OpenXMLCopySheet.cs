@@ -17,7 +17,7 @@ namespace OpenXMLCopyPasteSpreadsheet
         public static void CopySheet(string filename, string sheetName, string clonedSheetName, string destFileName)
         {
             //Open workbook
-            using SpreadsheetDocument mySpreadsheet = SpreadsheetDocument.Open(filename, true);
+            using var mySpreadsheet = SpreadsheetDocument.Open(filename, true);
 
             WorkbookPart workbookPart = mySpreadsheet.WorkbookPart;
 
@@ -26,9 +26,9 @@ namespace OpenXMLCopyPasteSpreadsheet
             SharedStringTablePart sharedStringTable = workbookPart.SharedStringTablePart;
 
             //Take advantage of AddPart for deep cloning
-            using SpreadsheetDocument newXLFile = SpreadsheetDocument.Create(destFileName, SpreadsheetDocumentType.Workbook);
+            using var newXLSFile = SpreadsheetDocument.Create(destFileName, SpreadsheetDocumentType.Workbook);
 
-            WorkbookPart newWorkbookPart = newXLFile.AddWorkbookPart();
+            WorkbookPart newWorkbookPart = newXLSFile.AddWorkbookPart();
             SharedStringTablePart newSharedStringTable = newWorkbookPart.AddPart<SharedStringTablePart>(sharedStringTable);
             WorksheetPart newWorksheetPart = newWorkbookPart.AddPart<WorksheetPart>(sourceSheetPart);
 

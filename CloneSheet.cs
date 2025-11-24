@@ -9,7 +9,7 @@ namespace OpenXMLCopyPasteSpreadsheet
         // Posted by Patryk Sładek
         // Retrieved 2025-11-24, License - CC BY-SA 4.0
 
-        static void CloneSheet(SpreadsheetDocument spreadsheetDocument, string sheetName, string clonedSheetName)
+        public static void CloneSheet(SpreadsheetDocument spreadsheetDocument, string sheetName, string clonedSheetName)
         {
             WorkbookPart workbookPart = spreadsheetDocument.WorkbookPart;
             WorksheetPart sourceSheetPart = OpenXMLCopySheet.GetWorkSheetPart(workbookPart, sheetName);

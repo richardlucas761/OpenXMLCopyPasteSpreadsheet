@@ -2,6 +2,7 @@
 using DocumentFormat.OpenXml.Spreadsheet;
 using Color = DocumentFormat.OpenXml.Spreadsheet.Color;
 using Font = DocumentFormat.OpenXml.Spreadsheet.Font;
+using System.Linq;
 
 namespace OpenXMLCopyPasteSpreadsheet
 {
@@ -11,10 +12,8 @@ namespace OpenXMLCopyPasteSpreadsheet
         // Posted by Mike F
         // Retrieved 2025-11-24, License - CC BY-SA 4.0
 
-        public static void MergeXSLX(string spreadSheetPathSource, string spreadSheetPathDestination)
+        public static void MergeXSLX(string spreadSheetPathSource, string spreadSheetPathDestination, string[] staticSheets)
         {
-            string[] staticSheets = ["Summaries", "limits"];
-
             FileStream spreadSheetStreamSource = null;
             FileStream spreadSheetStreamDestination = null;
 
@@ -34,7 +33,6 @@ namespace OpenXMLCopyPasteSpreadsheet
                 spreadSheetStreamDestination = new FileStream(spreadSheetPathDestination, FileMode.Open, FileAccess.ReadWrite);
 
                 using SpreadsheetDocument spreadsheetDocumentSource = SpreadsheetDocument.Open(spreadSheetStreamSource, false);
-
                 using SpreadsheetDocument spreadsheetDocumentDestination = SpreadsheetDocument.Open(spreadSheetStreamDestination, true);
 
                 var workbookPartSource = spreadsheetDocumentSource.WorkbookPart;
@@ -65,13 +63,13 @@ namespace OpenXMLCopyPasteSpreadsheet
                             DeleteWorkSheet(workbookPartDestination, sheet.Name);
                         }
 
-                        ////Get the source sheet to be copied
-                        WorksheetPart sourceSheetPart = OpenXMLCopySheet.GetWorkSheetPart(workbookPartSource, sheet.Name);
+                        // Get the source sheet to be copied
+                        var sourceSheetPart = OpenXMLCopySheet.GetWorkSheetPart(workbookPartSource, sheet.Name);
 
-                        //Take advantage of AddPart for deep cloning
-                        SpreadsheetDocument tempSheet = SpreadsheetDocument.Create(new MemoryStream(), spreadsheetDocumentDestination.DocumentType);
-                        WorkbookPart tempWorkbookPart = tempSheet.AddWorkbookPart();
-                        WorksheetPart tempWorksheetPart = tempWorkbookPart.AddPart<WorksheetPart>(sourceSheetPart);
+                        // Take advantage of AddPart for deep cloning
+                        var tempSheet = SpreadsheetDocument.Create(new MemoryStream(), spreadsheetDocumentDestination.DocumentType);
+                        var tempWorkbookPart = tempSheet.AddWorkbookPart();
+                        var tempWorksheetPart = tempWorkbookPart.AddPart(sourceSheetPart);
 
                         if (workbookPartDestination.SharedStringTablePart == null)
                         {
@@ -79,28 +77,29 @@ namespace OpenXMLCopyPasteSpreadsheet
                         }
 
                         //Add cloned sheet and all associated parts to workbook
-                        WorksheetPart clonedSheet = workbookPartDestination.AddPart<WorksheetPart>(tempWorksheetPart);
+                        var clonedSheet = workbookPartDestination.AddPart(tempWorksheetPart);
 
                         //Table definition parts are somewhat special and need unique ids...so let's make an id based on count
-                        //int numTableDefParts = sourceSheetPart.GetPartsCountOfType<TableDefinitionPart>(); // No longer supported?
                         int numTableDefParts = sourceSheetPart.GetPartsOfType<TableDefinitionPart>().Count();
-
                         int tableId = numTableDefParts;
 
                         //Clean up table definition parts (tables need unique ids)
                         if (numTableDefParts != 0)
+                        {
                             OpenXMLCopySheet.FixupTableParts(clonedSheet, numTableDefParts);
+                        }
+
                         //There should only be one sheet that has focus
                         OpenXMLCopySheet.CleanView(clonedSheet);
 
                         var values = workbookPartSource.SharedStringTablePart.SharedStringTable.Elements<SharedStringItem>().ToArray();
 
-                        Dictionary<uint, uint> cacheCellFormat = new Dictionary<uint, uint>();
-                        Dictionary<uint, uint> cacheCellStyleFormat = new Dictionary<uint, uint>();
-                        Dictionary<uint, uint> cacheBorder = new Dictionary<uint, uint>();
-                        Dictionary<uint, uint> cacheFill = new Dictionary<uint, uint>();
-                        Dictionary<uint, uint> cacheFont = new Dictionary<uint, uint>();
-                        Dictionary<uint, uint> cacheNumberFormat = new Dictionary<uint, uint>();
+                        Dictionary<uint, uint> cacheCellFormat = [];
+                        Dictionary<uint, uint> cacheCellStyleFormat = [];
+                        Dictionary<uint, uint> cacheBorder = [];
+                        Dictionary<uint, uint> cacheFill = [];
+                        Dictionary<uint, uint> cacheFont = [];
+                        Dictionary<uint, uint> cacheNumberFormat = [];
 
                         foreach (Cell cell in clonedSheet.Worksheet.Descendants<Cell>())
                         {
@@ -119,8 +118,8 @@ namespace OpenXMLCopyPasteSpreadsheet
                         }
 
                         //Add new sheet to main workbook part
-                        Sheets sheets = workbookPartDestination.Workbook.GetFirstChild<Sheets>();
-                        Sheet copiedSheet = new Sheet
+                        var sheets = workbookPartDestination.Workbook.GetFirstChild<Sheets>();
+                        var copiedSheet = new Sheet
                         {
                             Name = sheet.Name,
                             Id = workbookPartDestination.GetIdOfPart(clonedSheet),
@@ -153,14 +152,17 @@ namespace OpenXMLCopyPasteSpreadsheet
         {
             uint cellFormatIndex, cellStyleFormatIndex;
 
-            if (cacheCellFormat.Keys.Contains(cell.StyleIndex.Value))
+            if (cacheCellFormat.TryGetValue(cell.StyleIndex.Value, out uint value))
             {
-                cellFormatIndex = cacheCellFormat[cell.StyleIndex.Value];
+                cellFormatIndex = value;
             }
             else
             {
-                CellFormat cellFormat = workbookPartSource.WorkbookStylesPart.Stylesheet.CellFormats.Descendants<CellFormat>().ToList()[int.Parse(cell.StyleIndex)];
-                CellFormat cellFormatClone = CellFormatClone(workbookPartSource, workbookPartDestination, cacheBorder, cacheFill, cacheFont, cacheNumberFormat, cellFormat);
+                var cellFormat = workbookPartSource.WorkbookStylesPart.Stylesheet.CellFormats
+                    .Descendants<CellFormat>().ToList()[int.Parse(cell.StyleIndex)];
+
+                var cellFormatClone = CellFormatClone(workbookPartSource, workbookPartDestination, cacheBorder, cacheFill,
+                    cacheFont, cacheNumberFormat, cellFormat);
 
                 if (cellFormat.FormatId != 0)
                 {
@@ -198,15 +200,18 @@ namespace OpenXMLCopyPasteSpreadsheet
 
         private static CellFormat CellFormatClone(WorkbookPart workbookPartSource, WorkbookPart workbookPartDestination, Dictionary<uint, uint> cacheBorder, Dictionary<uint, uint> cacheFill, Dictionary<uint, uint> cacheFont, Dictionary<uint, uint> cacheNumberFormat, CellFormat cellFormat)
         {
-            CellFormat cellFormatClone = new CellFormat();
-            cellFormatClone.ApplyAlignment = cellFormat.ApplyAlignment;
-            cellFormatClone.ApplyBorder = cellFormat.ApplyBorder;
-            cellFormatClone.ApplyFill = cellFormat.ApplyFill;
-            cellFormatClone.ApplyFont = cellFormat.ApplyFont;
-            cellFormatClone.ApplyNumberFormat = cellFormat.ApplyNumberFormat;
-            cellFormatClone.ApplyProtection = cellFormat.ApplyProtection;
-            cellFormatClone.PivotButton = cellFormat.PivotButton;
-            cellFormatClone.QuotePrefix = cellFormat.QuotePrefix;
+            var cellFormatClone = new CellFormat
+            {
+                ApplyAlignment = cellFormat.ApplyAlignment,
+                ApplyBorder = cellFormat.ApplyBorder,
+                ApplyFill = cellFormat.ApplyFill,
+                ApplyFont = cellFormat.ApplyFont,
+                ApplyNumberFormat = cellFormat.ApplyNumberFormat,
+                ApplyProtection = cellFormat.ApplyProtection,
+                PivotButton = cellFormat.PivotButton,
+                QuotePrefix = cellFormat.QuotePrefix
+            };
+
             GetBorder(workbookPartSource, workbookPartDestination, cacheBorder, cellFormat, cellFormatClone);
             GetFill(workbookPartSource, workbookPartDestination, cacheFill, cellFormat, cellFormatClone);
             GetFont(workbookPartSource, workbookPartDestination, cacheFont, cellFormat, cellFormatClone);
@@ -231,13 +236,13 @@ namespace OpenXMLCopyPasteSpreadsheet
 
             if (cellFormat.NumberFormatId.Value != 0)
             {
-                if (cacheNumberFormat.Keys.Contains(cellFormat.NumberFormatId.Value))
+                if (cacheNumberFormat.TryGetValue(cellFormat.NumberFormatId.Value, out uint value))
                 {
-                    numberFormatIndex = cacheNumberFormat[cellFormat.NumberFormatId.Value];
+                    numberFormatIndex = value;
                 }
                 else
                 {
-                    NumberingFormat numberFormat = workbookPartSource.WorkbookStylesPart.Stylesheet.NumberingFormats.Descendants<NumberingFormat>().Where(nf => nf.NumberFormatId.Value == uint.Parse(cellFormat.NumberFormatId)).FirstOrDefault();
+                    var numberFormat = workbookPartSource.WorkbookStylesPart.Stylesheet.NumberingFormats.Descendants<NumberingFormat>().Where(nf => nf.NumberFormatId.Value == uint.Parse(cellFormat.NumberFormatId)).FirstOrDefault();
 
                     if (numberFormat != null)
                     {
@@ -250,7 +255,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                                 return;
                             }
 
-                            NumberingFormat nfclone = new NumberingFormat();
+                            var nfclone = new NumberingFormat();
                             nfclone.FormatCode = numberFormat.FormatCode;
                             nfclone.NumberFormatId = workbookPartDestination.WorkbookStylesPart.Stylesheet.Descendants<NumberingFormat>().Max(nf => nf.NumberFormatId.Value) + 1;
 
@@ -285,7 +290,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                 }
                 else
                 {
-                    Font font = workbookPartSource.WorkbookStylesPart.Stylesheet.Fonts.Descendants<Font>().ToList()[int.Parse(cellFormat.FontId)];
+                    var font = workbookPartSource.WorkbookStylesPart.Stylesheet.Fonts.Descendants<Font>().ToList()[int.Parse(cellFormat.FontId)];
 
                     if (workbookPartDestination.WorkbookStylesPart.Stylesheet.Fonts.Descendants<Font>().ToList().Count > int.Parse(cellFormat.FontId) &&
                         workbookPartDestination.WorkbookStylesPart.Stylesheet.Fonts.Descendants<Font>().ToList()[int.Parse(cellFormat.FontId)].OuterXml == font.OuterXml)
@@ -294,7 +299,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                         return;
                     }
 
-                    Font fontClone = new Font();
+                    Font fontClone = new();
 
                     if (font.Bold != null)
 
@@ -356,7 +361,6 @@ namespace OpenXMLCopyPasteSpreadsheet
 
                         fontClone.FontFamilyNumbering = (FontFamilyNumbering)font.FontFamilyNumbering.Clone();
 
-
                     workbookPartDestination.WorkbookStylesPart.Stylesheet.Fonts.Append(fontClone);
                     fontIndex = (uint)workbookPartDestination.WorkbookStylesPart.Stylesheet.Fonts.Descendants<Font>().ToList().IndexOf(fontClone);
                     cacheFont.Add(cellFormat.FontId.Value, fontIndex);
@@ -382,7 +386,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                 }
                 else
                 {
-                    Fill fill = workbookPartSource.WorkbookStylesPart.Stylesheet.Fills.Descendants<Fill>().ToList()[int.Parse(cellFormat.FillId)];
+                    var fill = workbookPartSource.WorkbookStylesPart.Stylesheet.Fills.Descendants<Fill>().ToList()[int.Parse(cellFormat.FillId)];
 
                     if (workbookPartDestination.WorkbookStylesPart.Stylesheet.Fills.Descendants<Fill>().ToList().Count > int.Parse(cellFormat.FillId) &&
                       workbookPartDestination.WorkbookStylesPart.Stylesheet.Fills.Descendants<Fill>().ToList()[int.Parse(cellFormat.FillId)].OuterXml == fill.OuterXml)
@@ -391,7 +395,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                         return;
                     }
 
-                    Fill fillclone = new Fill();
+                    var fillclone = new Fill();
 
                     if (fill.GradientFill != null)
 
@@ -421,13 +425,13 @@ namespace OpenXMLCopyPasteSpreadsheet
 
             if (cellFormat.BorderId.Value != 0)
             {
-                if (cacheBorder.Keys.Contains(cellFormat.BorderId.Value))
+                if (cacheBorder.TryGetValue(cellFormat.BorderId.Value, out uint value))
                 {
-                    borderIndex = cacheBorder[cellFormat.BorderId.Value];
+                    borderIndex = value;
                 }
                 else
                 {
-                    Border border = workbookPartSource.WorkbookStylesPart.Stylesheet.Borders.Descendants<Border>().ToList()[int.Parse(cellFormat.BorderId)];
+                    var border = workbookPartSource.WorkbookStylesPart.Stylesheet.Borders.Descendants<Border>().ToList()[int.Parse(cellFormat.BorderId)];
 
                     if (workbookPartDestination.WorkbookStylesPart.Stylesheet.Borders.Descendants<Border>().ToList().Count > int.Parse(cellFormat.BorderId) &&
                         workbookPartDestination.WorkbookStylesPart.Stylesheet.Borders.Descendants<Border>().ToList()[int.Parse(cellFormat.BorderId)].OuterXml == border.OuterXml)
@@ -436,7 +440,7 @@ namespace OpenXMLCopyPasteSpreadsheet
                         return;
                     }
 
-                    Border borderclone = new Border();
+                    Border borderclone = new();
 
                     if (border.StartBorder != null)
 
@@ -493,10 +497,7 @@ namespace OpenXMLCopyPasteSpreadsheet
 
         {
             // If the part does not contain a SharedStringTable, create one.
-            if (shareStringPart.SharedStringTable == null)
-            {
-                shareStringPart.SharedStringTable = new SharedStringTable();
-            }
+            shareStringPart.SharedStringTable ??= new SharedStringTable();
 
             int i = 0;
 
@@ -528,12 +529,12 @@ namespace OpenXMLCopyPasteSpreadsheet
 
             foreach (PivotTableCacheDefinitionPart Item in pvtTableCacheParts)
             {
-                PivotCacheDefinition pvtCacheDef = Item.PivotCacheDefinition;
+                var pvtCacheDef = Item.PivotCacheDefinition;
 
                 //Check if this CacheSource is linked to SheetToDelete
                 var pvtCahce = pvtCacheDef.Descendants<CacheSource>().Where(s => s.WorksheetSource.Sheet == sheetToDelete);
 
-                if (pvtCahce.Count() > 0)
+                if (pvtCahce.Any())
                 {
                     pvtTableCacheDefinationPart.Add(Item, Item.ToString());
                 }
@@ -545,8 +546,7 @@ namespace OpenXMLCopyPasteSpreadsheet
             }
 
             //Get the SheetToDelete from workbook.xml
-
-            Sheet theSheet = wbPart.Workbook.Descendants<Sheet>().Where(s => s.Name == sheetToDelete).FirstOrDefault();
+            var theSheet = wbPart.Workbook.Descendants<Sheet>().Where(s => s.Name == sheetToDelete).FirstOrDefault();
 
             if (theSheet == null)
             {
@@ -558,7 +558,7 @@ namespace OpenXMLCopyPasteSpreadsheet
             Sheetid = theSheet.SheetId;
 
             // Remove the sheet reference from the workbook.
-            WorksheetPart worksheetPart = (WorksheetPart)(wbPart.GetPartById(theSheet.Id));
+            var worksheetPart = (WorksheetPart)(wbPart.GetPartById(theSheet.Id));
             theSheet.Remove();
 
             // Delete the worksheet part.
@@ -568,13 +568,13 @@ namespace OpenXMLCopyPasteSpreadsheet
             var definedNames = wbPart.Workbook.Descendants<DefinedNames>().FirstOrDefault();
             if (definedNames != null)
             {
-                foreach (DefinedName Item in definedNames)
+                // This condition checks to delete only those names which are part of Sheet in question
+                foreach (var Item in
+                    from DefinedName Item in definedNames
+                    where Item.Text.Contains(sheetToDelete + "!")
+                    select Item)
                 {
-                    // This condition checks to delete only those names which are part of Sheet in question
-                    if (Item.Text.Contains(sheetToDelete + "!"))
-                    {
-                        Item.Remove();
-                    }
+                    Item.Remove();
                 }
             }
 
