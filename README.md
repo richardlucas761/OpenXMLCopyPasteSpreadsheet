@@ -39,4 +39,4 @@ Clones the content of an existing sheet in the same file.
 
 ## Notes on XLSX files
 
-The .XLSX files present were mostly created on Office.com using the templates available and then downloaded to a local copy.
+The .XLSX files present were created on Office.com using the templates available and then downloaded to a local copy.

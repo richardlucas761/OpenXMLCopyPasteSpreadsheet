@@ -8,6 +8,7 @@ const string InventoryListSheet = "Inventory list";
 const string Output1 = "Output1.xlsx";
 const string Output2 = "Output2.xlsx";
 const string Output3 = "Output3.xlsx";
+const string Output4 = "Output4.xlsx";
 
 // ----------------------------------------------------------------------------
 // General notes
@@ -33,6 +34,11 @@ if (File.Exists(Output2))
 if (File.Exists(Output3))
 {
     File.Delete(Output3);
+}
+
+if (File.Exists(Output4))
+{
+    File.Delete(Output4);
 }
 
 // ----------------------------------------------------------------------------
@@ -75,3 +81,14 @@ OpenXMLCopyPasteSpreadsheet.MergeXLSX.MergeXSLX(ToDoList, Output3, [ToDoListShee
 // Note: When viewing the created file "Output3.xlsx" in LibreOffice a Security Warning "Automatic update of external links has
 // been disabled." is displayed. This is not seen for "Output1.xlsx" and "Output2.xlsx" for the previous two experiments. The
 // reason for this is not known.
+
+// ----------------------------------------------------------------------------
+// Experiment 3 - Merge two spreadsheets together, more complex spreadsheet
+// with frozen rows, word wrap, merges and an image present.
+// ----------------------------------------------------------------------------
+
+File.Copy("WithImage.xlsx", Output4, true);
+
+OpenXMLCopyPasteSpreadsheet.MergeXLSX.MergeXSLX(ToDoList, Output4, [ToDoListSheet, "Assignment setup"]);
+
+// Note: The same Security Warning "Automatic update of external links has been disabled." is seen in LibreOffice for "Output4.xlsx".
