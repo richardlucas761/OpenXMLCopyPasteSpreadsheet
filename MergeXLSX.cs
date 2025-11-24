@@ -1,8 +1,6 @@
 ﻿using DocumentFormat.OpenXml.Packaging;
 using DocumentFormat.OpenXml.Spreadsheet;
 using openxmlExcelTryout;
-using System.Drawing;
-using static System.Net.Mime.MediaTypeNames;
 using Color = DocumentFormat.OpenXml.Spreadsheet.Color;
 using Font = DocumentFormat.OpenXml.Spreadsheet.Font;
 
