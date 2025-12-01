@@ -115,6 +115,8 @@ static void Experiment1(string ToDoList, string InventoryList, string InventoryL
     OpenXMLCopyPasteSpreadsheet.OpenXMLCopySheet.CopySheet(InventoryList, InventoryListSheet,
         InventoryListSheet + "2", Output1);
 
+    // TODO the formatting of the content has also been lost? Did the author break this?
+
     // Note: after uploading "Output1.xlsx" to Office.com and viewing the spreadsheet in the web "Open in browser" this message
     // was seen, suggesting the file produced is corrupted:
     // "WORKBOOK REPAIRED We temporarily repaired this workbook so that you can open it in Reading View."

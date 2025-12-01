@@ -12,6 +12,7 @@ namespace OpenXMLCopyPasteSpreadsheet
     {
         private const string CopiedTable = "CopiedTable";
 
+        // TODO move this into CopySheet?
         private static int tableId;
 
         public static void CopySheet(string filename, string sheetName, string clonedSheetName, string destFileName)
@@ -39,7 +40,10 @@ namespace OpenXMLCopyPasteSpreadsheet
 
             //Clean up table definition parts (tables need unique ids)
             if (numTableDefParts != 0)
-                FixupTableParts(newWorksheetPart, numTableDefParts);
+            {
+                FixupTableParts(newWorksheetPart);
+            }
+
             //There should only be one sheet that has focus
             CleanView(newWorksheetPart);
 
@@ -88,7 +92,7 @@ namespace OpenXMLCopyPasteSpreadsheet
             }
         }
 
-        public static void FixupTableParts(WorksheetPart worksheetPart, int numTableDefParts)
+        public static void FixupTableParts(WorksheetPart worksheetPart)
         {
             //Every table needs a unique id and name
             foreach (TableDefinitionPart tableDefPart in worksheetPart.TableDefinitionParts)
